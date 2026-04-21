@@ -1,241 +1,139 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/ui/icon";
+import { api } from "@/lib/api";
 
-const HERO_IMAGE = "https://cdn.poehali.dev/projects/9ab0d17f-a8ab-49c0-b650-17a76a1ed4c7/files/90111c5f-a111-4033-9aaf-b8f30d956ad1.jpg";
-
-const FLOATING_PIXELS = ["🟩", "🟫", "💎", "⚔️", "🛡️", "✨", "🟩", "💎"];
-
+// ======================== КОНСТАНТЫ ========================
 const SERVICES = [
-  {
-    icon: "👤",
-    title: "Базовый скин",
-    price: "от 149 ₽",
-    desc: "Уникальный персонаж по вашему описанию. 64×64 px, совместимо со всеми версиями.",
-    color: "var(--mc-green)",
-    tag: "Популярное",
-  },
-  {
-    icon: "💎",
-    title: "Премиум скин",
-    price: "от 349 ₽",
-    desc: "Детализированный скин с 3D-слоем, уникальными текстурами и HD-деталями.",
-    color: "var(--mc-diamond)",
-    tag: "Хит",
-  },
-  {
-    icon: "🛡️",
-    title: "Скин + Плащ",
-    price: "от 499 ₽",
-    desc: "Комплект: скин и анимированный плащ в одном стиле. Полный образ персонажа.",
-    color: "var(--mc-gold)",
-    tag: "Комплект",
-  },
-  {
-    icon: "👥",
-    title: "Командный набор",
-    price: "от 999 ₽",
-    desc: "Скины для целой команды или клана в едином корпоративном стиле.",
-    color: "#FF6B35",
-    tag: "Для кланов",
-  },
+  { id: "custom", label: "Кастомный скин", price: "100 ₽", icon: "🎨", desc: "Полностью уникальный скин по твоему описанию — любой образ, любой стиль" },
+  { id: "simple", label: "Простой скин", price: "50 ₽", icon: "👤", desc: "Базовый аккуратный скин — быстро и качественно" },
+  { id: "rebranding", label: "Ребрендинг", price: "60 ₽", icon: "🔄", desc: "Переделаем и улучшим твой существующий скин" },
+  { id: "bundle", label: "Комплект скинов", price: "от 150 ₽", icon: "👥", desc: "3 и более скинов в одном стиле — для клана или команды" },
 ];
 
-const STEPS = [
-  { num: "01", title: "Заявка", desc: "Опишите идею персонажа — характер, стиль, цвета, референсы", icon: "📝" },
-  { num: "02", title: "Концепт", desc: "Художник создаёт эскиз и согласовывает образ с вами", icon: "🎨" },
-  { num: "03", title: "Пикселизация", desc: "Перевод концепта в пиксельный формат Minecraft 64×64", icon: "⚙️" },
-  { num: "04", title: "Доставка", desc: "Готовый файл .png + инструкция по установке в течение 24ч", icon: "📦" },
-];
+const STATUS_LABEL: Record<string, string> = {
+  new: "Новый",
+  in_progress: "В работе",
+  done: "Выполнен",
+  cancelled: "Отменён",
+};
 
-const REVIEWS = [
-  {
-    name: "Стас_Крипер",
-    avatar: "🎮",
-    text: "Заказал скин рыцаря-вампира — получилось нереально круто! Все в сервере сразу спросили, где брал.",
-    stars: 5,
-    date: "2 дня назад",
-  },
-  {
-    name: "XxDarkWolfxX",
-    avatar: "🐺",
-    text: "Быстро, качественно, слушают пожелания. Переделали детали 2 раза без доп. оплаты. Рекомендую!",
-    stars: 5,
-    date: "5 дней назад",
-  },
-  {
-    name: "CraftMaster2007",
-    avatar: "⛏️",
-    text: "Заказываю уже третий раз. Каждый раз удивляют — придумывают детали, о которых сам не думал.",
-    stars: 5,
-    date: "1 неделю назад",
-  },
-  {
-    name: "LunaPixel",
-    avatar: "🌙",
-    text: "Сделали скин для всего нашего клана (8 человек). Все в едином стиле, смотрится шикарно на сервере!",
-    stars: 5,
-    date: "2 недели назад",
-  },
-];
-
-function PixelBlock({ char, delay = 0, x, y }: { char: string; delay?: number; x: number; y: number }) {
-  return (
-    <div
-      className="absolute text-2xl select-none pointer-events-none"
-      style={{
-        left: `${x}%`,
-        top: `${y}%`,
-        animation: `float-pixel ${3 + (x % 2)}s ease-in-out infinite`,
-        animationDelay: `${delay}s`,
-        opacity: 0.4,
-        filter: "drop-shadow(0 0 6px rgba(76, 175, 80, 0.8))",
-      }}
-    >
-      {char}
-    </div>
-  );
-}
-
-function NavBar() {
+// ======================== NAVBAR ========================
+function NavBar({ onOrderClick }: { onOrderClick: () => void }) {
   const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", handler);
-    return () => window.removeEventListener("scroll", handler);
+    const h = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", h);
+    return () => window.removeEventListener("scroll", h);
   }, []);
-
-  const links = [
-    { label: "Услуги", href: "#services" },
-    { label: "О нас", href: "#about" },
-    { label: "Процесс", href: "#process" },
-    { label: "Отзывы", href: "#reviews" },
-  ];
 
   return (
     <nav
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
       style={{
-        background: scrolled ? "rgba(10, 15, 10, 0.95)" : "transparent",
-        borderBottom: scrolled ? "2px solid rgba(76, 175, 80, 0.3)" : "none",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
+        background: scrolled ? "rgba(8,12,8,0.97)" : "transparent",
+        borderBottom: scrolled ? "1px solid rgba(76,175,80,0.25)" : "none",
+        backdropFilter: scrolled ? "blur(14px)" : "none",
       }}
     >
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        <a href="#" className="font-pixel text-xs neon-text tracking-wider">
-          PIXEL<span style={{ color: "var(--mc-diamond)" }}>SKIN</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <a href="#" className="font-pixel text-xs sm:text-sm neon-text">
+          SKIN<span style={{ color: "var(--mc-diamond)" }}>FORGE</span>
         </a>
-
-        <div className="hidden md:flex items-center gap-8">
-          {links.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              className="font-rubik text-sm font-medium text-green-300 hover:text-white transition-colors relative group"
-            >
-              {l.label}
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-mc-green group-hover:w-full transition-all duration-300" />
+        <div className="hidden md:flex items-center gap-6 lg:gap-8">
+          {[["Услуги", "#services"], ["О нас", "#about"], ["Команда", "#team"], ["Отзывы", "#reviews"]].map(([l, h]) => (
+            <a key={l} href={h} className="font-rubik text-sm font-medium text-green-300 hover:text-white transition-colors">
+              {l}
             </a>
           ))}
-          <button className="mc-button">ЗАКАЗАТЬ</button>
+          <button className="mc-button" onClick={onOrderClick}>ЗАКАЗАТЬ</button>
+          <a href="/panel" className="font-pixel text-xs px-3 py-2 transition-all" style={{ border: "1px solid rgba(76,175,80,0.4)", color: "rgba(76,175,80,0.7)", fontSize: "8px" }}>
+            ПАНЕЛЬ
+          </a>
         </div>
-
-        <button className="md:hidden" style={{ color: "var(--mc-green)" }} onClick={() => setMenuOpen(!menuOpen)}>
-          <Icon name={menuOpen ? "X" : "Menu"} size={24} />
+        <button className="md:hidden" style={{ color: "var(--mc-green)" }} onClick={() => setMenu(!menu)}>
+          <Icon name={menu ? "X" : "Menu"} size={22} />
         </button>
       </div>
-
-      {menuOpen && (
-        <div className="md:hidden px-6 py-4 flex flex-col gap-4" style={{ background: "rgba(10, 15, 10, 0.98)" }}>
-          {links.map((l) => (
-            <a key={l.label} href={l.href} className="font-rubik text-sm font-medium text-green-300" onClick={() => setMenuOpen(false)}>
-              {l.label}
-            </a>
+      {menu && (
+        <div className="md:hidden px-6 py-4 flex flex-col gap-4" style={{ background: "rgba(8,12,8,0.98)", borderTop: "1px solid rgba(76,175,80,0.2)" }}>
+          {[["Услуги", "#services"], ["О нас", "#about"], ["Команда", "#team"], ["Отзывы", "#reviews"]].map(([l, h]) => (
+            <a key={l} href={h} className="font-rubik text-sm text-green-300" onClick={() => setMenu(false)}>{l}</a>
           ))}
-          <button className="mc-button w-full">ЗАКАЗАТЬ</button>
+          <button className="mc-button" onClick={() => { setMenu(false); onOrderClick(); }}>ЗАКАЗАТЬ СКИН</button>
+          <a href="/panel" className="font-pixel text-center py-2" style={{ border: "1px solid rgba(76,175,80,0.3)", color: "rgba(76,175,80,0.7)", fontSize: "9px" }}>ПАНЕЛЬ СОТРУДНИКА</a>
         </div>
       )}
     </nav>
   );
 }
 
-function HeroSection() {
+// ======================== HERO ========================
+function HeroSection({ onOrderClick, clientCount }: { onOrderClick: () => void; clientCount: number }) {
   return (
-    <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden pixel-grid">
-      {FLOATING_PIXELS.map((char, i) => (
-        <PixelBlock key={i} char={char} delay={i * 0.5} x={5 + (i * 13) % 90} y={10 + (i * 17) % 75} />
-      ))}
-
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `url(${HERO_IMAGE})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          opacity: 0.15,
-        }}
-      />
-
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(76, 175, 80, 0.12) 0%, transparent 70%)" }}
-      />
-
-      <div className="relative z-10 text-center px-6 max-w-5xl mx-auto">
-        <div
-          className="inline-flex items-center gap-2 mb-8 px-4 py-2 font-pixel text-xs"
-          style={{ border: "2px solid var(--mc-green)", color: "var(--mc-green)", boxShadow: "var(--neon-glow-sm)" }}
-        >
-          <span className="animate-pixel-blink">▶</span>
-          СТУДИЯ MINECRAFT СКИНОВ
-        </div>
-
-        <h1 className="font-pixel mb-6 animate-slide-up" style={{ fontSize: "clamp(20px, 5vw, 52px)", lineHeight: "1.4", color: "#fff" }}>
-          СОЗДАЙ{" "}
-          <span className="animate-neon-pulse" style={{ color: "var(--mc-green)" }}>УНИКАЛЬНЫЙ</span>
-          <br />
-          ОБРАЗ ДЛЯ
-          <br />
-          <span style={{ color: "var(--mc-diamond)", textShadow: "var(--diamond-glow)" }}>MINECRAFT</span>
-        </h1>
-
-        <p
-          className="font-rubik text-lg md:text-xl animate-slide-up delay-200"
-          style={{ color: "rgba(200, 240, 200, 0.8)", maxWidth: "560px", margin: "0 auto 40px" }}
-        >
-          Пиксельные скины ручной работы. Твой персонаж — твоя история. Готово за 24 часа.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up delay-400">
-          <button className="mc-button px-8 py-4">🎨 ЗАКАЗАТЬ СКИН</button>
-          <button
-            className="font-pixel text-xs px-8 py-4 transition-all duration-200"
-            style={{ border: "3px solid rgba(77, 255, 219, 0.5)", color: "var(--mc-diamond)", background: "transparent" }}
-          >
-            💎 ПРИМЕРЫ РАБОТ
-          </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6 mt-16 max-w-lg mx-auto animate-slide-up delay-600">
-          {[
-            { val: "1200+", label: "скинов создано" },
-            { val: "24ч", label: "время выполнения" },
-            { val: "98%", label: "довольных игроков" },
-          ].map((s) => (
-            <div key={s.label} className="text-center">
-              <div className="font-pixel text-lg mb-1" style={{ color: "var(--mc-green)" }}>{s.val}</div>
-              <div className="font-rubik text-xs" style={{ color: "rgba(200, 240, 200, 0.5)" }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: "linear-gradient(180deg, #050a05 0%, #080f08 60%, #0a140a 100%)" }}>
+      {/* Animated pixel dots */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute"
+            style={{
+              width: 6 + (i % 3) * 4,
+              height: 6 + (i % 3) * 4,
+              background: i % 3 === 0 ? "var(--mc-green)" : i % 3 === 1 ? "var(--mc-diamond)" : "var(--mc-gold)",
+              left: `${(i * 371) % 100}%`,
+              top: `${(i * 197) % 100}%`,
+              opacity: 0.12 + (i % 4) * 0.06,
+              animation: `float-pixel ${4 + (i % 3)}s ease-in-out infinite`,
+              animationDelay: `${(i * 0.4) % 3}s`,
+            }}
+          />
+        ))}
+        {/* Grid lines */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: "linear-gradient(rgba(76,175,80,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(76,175,80,0.04) 1px,transparent 1px)",
+          backgroundSize: "48px 48px"
+        }} />
       </div>
 
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">
-        <span className="font-pixel text-xs" style={{ color: "var(--mc-green)" }}>SCROLL</span>
-        <div className="flex flex-col gap-1">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="w-2 h-2" style={{ background: "var(--mc-green)", animation: `pixel-blink 1s step-end infinite`, animationDelay: `${i * 0.3}s` }} />
+      <div className="relative z-10 text-center px-4 sm:px-6 max-w-5xl mx-auto">
+        <div className="inline-flex items-center gap-2 mb-6 sm:mb-8 px-3 sm:px-4 py-2 font-pixel" style={{ border: "2px solid var(--mc-green)", color: "var(--mc-green)", boxShadow: "var(--neon-glow-sm)", fontSize: "clamp(7px,1.5vw,10px)" }}>
+          <span className="animate-pixel-blink">▶</span>
+          СТУДИЯ СКИНОВ MINECRAFT · С 2026 ГОДА
+        </div>
+
+        <h1 className="font-pixel mb-4 sm:mb-6 animate-slide-up" style={{ fontSize: "clamp(22px,5vw,56px)", lineHeight: 1.3, color: "#fff" }}>
+          SKIN<span style={{ color: "var(--mc-green)" }}>FORGE</span>
+          <br />
+          <span style={{ fontSize: "clamp(12px,2.5vw,24px)", color: "rgba(200,240,200,0.7)" }}>СТУДИЯ СКИНОВ</span>
+        </h1>
+
+        <p className="font-rubik mb-8 sm:mb-10 animate-slide-up delay-200" style={{ fontSize: "clamp(14px,2vw,18px)", color: "rgba(200,240,200,0.75)", maxWidth: 520, margin: "0 auto 32px" }}>
+          Создаём уникальные скины для Minecraft вручную. Твой персонаж — твоя личность в игре.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center animate-slide-up delay-400">
+          <button className="mc-button px-6 sm:px-10 py-3 sm:py-4 text-xs sm:text-sm" onClick={onOrderClick}>
+            🎨 ЗАКАЗАТЬ СКИН
+          </button>
+          <a href="#services" className="font-pixel px-6 sm:px-10 py-3 sm:py-4 transition-all duration-200 text-center" style={{ border: "2px solid rgba(77,255,219,0.5)", color: "var(--mc-diamond)", background: "transparent", fontSize: "clamp(8px,1.5vw,10px)" }}>
+            💎 ЦЕНЫ И УСЛУГИ
+          </a>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-12 sm:mt-16 max-w-sm sm:max-w-md mx-auto animate-slide-up delay-600">
+          {[
+            { val: clientCount + "+", label: "клиентов" },
+            { val: "24ч", label: "время выполнения" },
+            { val: "100%", label: "ручная работа" },
+          ].map((s) => (
+            <div key={s.label} className="text-center">
+              <div className="font-pixel mb-1 animate-neon-pulse" style={{ fontSize: "clamp(14px,3vw,22px)", color: "var(--mc-green)" }}>{s.val}</div>
+              <div className="font-rubik text-xs" style={{ color: "rgba(200,240,200,0.45)", fontSize: "clamp(9px,1.5vw,11px)" }}>{s.label}</div>
+            </div>
           ))}
         </div>
       </div>
@@ -243,56 +141,38 @@ function HeroSection() {
   );
 }
 
-function ServicesSection() {
+// ======================== SERVICES ========================
+function ServicesSection({ onOrderClick }: { onOrderClick: (service?: string) => void }) {
   return (
-    <section id="services" className="py-24 px-6 relative">
-      <div className="pixel-divider mb-16" />
+    <section id="services" className="py-16 sm:py-24 px-4 sm:px-6">
+      <div className="pixel-divider mb-10 sm:mb-16" />
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <div className="font-pixel text-xs mb-4" style={{ color: "var(--mc-emerald)" }}>⛏ ВЫБЕРИ СВОЙ ПАКЕТ</div>
-          <h2 className="font-pixel mb-4" style={{ fontSize: "clamp(16px, 3vw, 32px)", color: "#fff" }}>
-            УСЛУГИ <span style={{ color: "var(--mc-green)" }}>СТУДИИ</span>
+        <div className="text-center mb-10 sm:mb-14">
+          <div className="font-pixel text-xs mb-3" style={{ color: "var(--mc-emerald)", fontSize: "9px" }}>⛏ ВЫБЕРИ ПАКЕТ</div>
+          <h2 className="font-pixel" style={{ fontSize: "clamp(16px,3vw,30px)", color: "#fff" }}>
+            УСЛУГИ <span style={{ color: "var(--mc-green)" }}>И ЦЕНЫ</span>
           </h2>
-          <p className="font-rubik text-base" style={{ color: "rgba(200, 240, 200, 0.6)" }}>
-            От базового персонажа до полного образа клана
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {SERVICES.map((s, i) => (
             <div
-              key={s.title}
-              className="relative p-6 group cursor-pointer transition-all duration-300"
-              style={{
-                background: "var(--bg-card)",
-                border: "2px solid rgba(76, 175, 80, 0.3)",
-                animation: `slide-up 0.5s ease-out ${i * 0.1}s both`,
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget as HTMLDivElement;
-                el.style.borderColor = s.color;
-                el.style.boxShadow = `0 0 20px ${s.color}33`;
-                el.style.transform = "translateY(-4px)";
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget as HTMLDivElement;
-                el.style.borderColor = "rgba(76, 175, 80, 0.3)";
-                el.style.boxShadow = "none";
-                el.style.transform = "translateY(0)";
-              }}
+              key={s.id}
+              className="relative p-5 sm:p-6 cursor-pointer transition-all duration-300 group"
+              style={{ background: "#0d150d", border: "2px solid rgba(76,175,80,0.25)", animation: `slide-up 0.5s ease-out ${i * 0.08}s both` }}
+              onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "var(--mc-green)"; el.style.boxShadow = "0 0 20px rgba(76,175,80,0.2)"; el.style.transform = "translateY(-4px)"; }}
+              onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "rgba(76,175,80,0.25)"; el.style.boxShadow = "none"; el.style.transform = "translateY(0)"; }}
             >
-              <div className="absolute -top-3 right-4 font-pixel px-3 py-1" style={{ background: s.color, color: "#0a0f0a", fontSize: "8px" }}>
-                {s.tag}
-              </div>
-              <div className="text-4xl mb-4">{s.icon}</div>
-              <h3 className="font-pixel text-xs mb-2 text-white">{s.title}</h3>
-              <div className="font-pixel text-sm mb-3" style={{ color: s.color }}>{s.price}</div>
-              <p className="font-rubik text-sm" style={{ color: "rgba(200, 240, 200, 0.6)", lineHeight: 1.6 }}>{s.desc}</p>
+              <div className="text-3xl sm:text-4xl mb-3">{s.icon}</div>
+              <h3 className="font-pixel text-white mb-2" style={{ fontSize: "clamp(8px,1.5vw,11px)" }}>{s.label}</h3>
+              <div className="font-pixel mb-3" style={{ fontSize: "clamp(13px,2vw,18px)", color: "var(--mc-green)" }}>{s.price}</div>
+              <p className="font-rubik text-sm mb-5" style={{ color: "rgba(200,240,200,0.6)", lineHeight: 1.6, fontSize: "clamp(12px,1.5vw,14px)" }}>{s.desc}</p>
               <button
-                className="mt-6 w-full font-pixel py-3 transition-all duration-200"
-                style={{ border: `2px solid ${s.color}`, color: s.color, background: "transparent", fontSize: "8px" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLButtonElement; el.style.background = s.color; el.style.color = "#0a0f0a"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLButtonElement; el.style.background = "transparent"; el.style.color = s.color; }}
+                className="w-full font-pixel py-2.5 transition-all duration-200"
+                style={{ border: "2px solid var(--mc-green)", color: "var(--mc-green)", background: "transparent", fontSize: "8px" }}
+                onClick={() => onOrderClick(s.id)}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLButtonElement; el.style.background = "var(--mc-green)"; el.style.color = "#050a05"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLButtonElement; el.style.background = "transparent"; el.style.color = "var(--mc-green)"; }}
               >
                 ЗАКАЗАТЬ →
               </button>
@@ -304,145 +184,112 @@ function ServicesSection() {
   );
 }
 
+// ======================== ABOUT ========================
 function AboutSection() {
   return (
-    <section id="about" className="py-24 px-6 relative overflow-hidden">
-      <div className="pixel-divider mb-16" />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 80% 50% at 30% 50%, rgba(77, 255, 219, 0.04) 0%, transparent 70%)" }}
-      />
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div className="relative">
-          <div
-            className="w-full aspect-square max-w-md mx-auto relative"
-            style={{ background: "var(--bg-card)", border: "3px solid var(--mc-green)", boxShadow: "var(--neon-glow-sm)" }}
-          >
-            <img src={HERO_IMAGE} alt="Студия скинов" className="w-full h-full object-cover opacity-70" />
-            <div className="absolute bottom-0 left-0 right-0 p-4" style={{ background: "linear-gradient(transparent, rgba(10, 15, 10, 0.95))" }}>
-              <div className="font-pixel text-xs text-center" style={{ color: "var(--mc-green)" }}>PixelSkin Studio © 2024</div>
+    <section id="about" className="py-16 sm:py-24 px-4 sm:px-6">
+      <div className="pixel-divider mb-10 sm:mb-16" />
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <div>
+            <div className="font-pixel text-xs mb-3" style={{ color: "var(--mc-emerald)", fontSize: "9px" }}>👾 О СТУДИИ</div>
+            <h2 className="font-pixel mb-5 sm:mb-6" style={{ fontSize: "clamp(14px,2.5vw,28px)", color: "#fff", lineHeight: 1.5 }}>
+              SKINFORGE —<br />
+              <span style={{ color: "var(--mc-green)" }}>ТВОЯ СТУДИЯ</span><br />
+              СКИНОВ
+            </h2>
+            <p className="font-rubik mb-5" style={{ fontSize: "clamp(13px,1.5vw,16px)", color: "rgba(200,240,200,0.8)", lineHeight: 1.8 }}>
+              Мы работаем с 2026 года и создаём уникальные скины для Minecraft вручную. Никаких генераторов — только живой художник, который слышит тебя.
+            </p>
+            <div className="space-y-3 mb-7">
+              {[
+                "Каждый скин рисуется вручную — без шаблонов",
+                "Работаем с Java Edition, Bedrock, PE",
+                "Правки до полного результата бесплатно",
+                "Ответ в течение 15 минут",
+                "Работаем с 2026 года",
+              ].map((t, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="w-2.5 h-2.5 mt-1.5 flex-shrink-0" style={{ background: "var(--mc-green)", boxShadow: "var(--neon-glow-sm)" }} />
+                  <p className="font-rubik" style={{ fontSize: "clamp(12px,1.5vw,15px)", color: "rgba(200,240,200,0.8)" }}>{t}</p>
+                </div>
+              ))}
             </div>
-            {[{ top: -6, left: -6 }, { top: -6, right: -6 }, { bottom: -6, left: -6 }, { bottom: -6, right: -6 }].map((pos, i) => (
-              <div key={i} className="absolute w-3 h-3" style={{ ...pos, background: "var(--mc-diamond)" }} />
-            ))}
+            <div className="flex flex-wrap gap-3">
+              <a href="https://t.me/Xezze228" target="_blank" rel="noopener noreferrer" className="mc-button text-xs">💬 TELEGRAM</a>
+              <a href="https://discord.com/users/xezze228" target="_blank" rel="noopener noreferrer" className="font-pixel py-3 px-5 transition-all" style={{ border: "2px solid rgba(77,255,219,0.5)", color: "var(--mc-diamond)", background: "transparent", fontSize: "8px" }}>
+                🎮 DISCORD
+              </a>
+            </div>
           </div>
-          <div className="absolute -top-4 -right-4 px-4 py-3 font-pixel" style={{ background: "var(--mc-green)", color: "#0a0f0a", fontSize: "9px", boxShadow: "4px 4px 0 #1a3d10" }}>
-            ✓ С 2021 ГОДА
-          </div>
-          <div className="absolute -bottom-4 -left-4 px-4 py-3 font-pixel" style={{ background: "var(--mc-diamond)", color: "#0a0f0a", fontSize: "9px", boxShadow: "4px 4px 0 #0a6b5e" }}>
-            ♦ ТОП СТУДИЯ
-          </div>
-        </div>
 
-        <div>
-          <div className="font-pixel text-xs mb-4" style={{ color: "var(--mc-emerald)" }}>👾 О СТУДИИ</div>
-          <h2 className="font-pixel mb-6" style={{ fontSize: "clamp(14px, 2.5vw, 28px)", color: "#fff", lineHeight: 1.5 }}>
-            МЫ — ХУДОЖНИКИ,<br />
-            <span style={{ color: "var(--mc-green)" }}>КОТОРЫЕ ЖИВУТ</span><br />
-            В МАЙНКРАФТЕ
-          </h2>
-          <div className="space-y-4 mb-8">
-            {[
-              "Команда из 5 художников-пикселистов с опытом 3+ лет",
-              "Каждый скин рисуется вручную — никаких шаблонов и генераторов",
-              "Работаем со всеми версиями: Java Edition, Bedrock, PE",
-              "Бесплатные правки до полного результата",
-            ].map((text, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-3 h-3 mt-1 flex-shrink-0" style={{ background: "var(--mc-green)", boxShadow: "var(--neon-glow-sm)" }} />
-                <p className="font-rubik text-base" style={{ color: "rgba(200, 240, 200, 0.8)" }}>{text}</p>
-              </div>
-            ))}
-          </div>
-          <button className="mc-button">💬 НАПИСАТЬ НАМ</button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ProcessSection() {
-  return (
-    <section id="process" className="py-24 px-6">
-      <div className="pixel-divider mb-16" />
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <div className="font-pixel text-xs mb-4" style={{ color: "var(--mc-emerald)" }}>⚙ КАК ЭТО РАБОТАЕТ</div>
-          <h2 className="font-pixel" style={{ fontSize: "clamp(16px, 3vw, 32px)", color: "#fff" }}>
-            ПРОЦЕСС <span style={{ color: "var(--mc-green)" }}>СОЗДАНИЯ</span>
-          </h2>
-        </div>
-
-        <div className="relative">
-          <div
-            className="hidden lg:block absolute top-12 left-0 right-0 h-0.5"
-            style={{ background: "repeating-linear-gradient(90deg, var(--mc-green) 0, var(--mc-green) 8px, transparent 8px, transparent 16px)", opacity: 0.4 }}
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {STEPS.map((step, i) => (
-              <div key={step.num} className="relative text-center" style={{ animation: `slide-up 0.5s ease-out ${i * 0.15}s both` }}>
+          <div className="relative">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {[
+                { icon: "🎨", val: "100%", label: "Ручная работа" },
+                { icon: "⚡", val: "24ч", label: "Срок выполнения" },
+                { icon: "🛡️", val: "∞", label: "Правки бесплатно" },
+                { icon: "💎", val: "2026", label: "Год основания" },
+              ].map((item) => (
                 <div
-                  className="w-24 h-24 mx-auto mb-6 flex items-center justify-center relative"
-                  style={{ background: "var(--bg-card)", border: "3px solid var(--mc-green)", boxShadow: "var(--neon-glow-sm)" }}
+                  key={item.label}
+                  className="p-4 sm:p-6 text-center"
+                  style={{ background: "#0d150d", border: "2px solid rgba(76,175,80,0.2)" }}
                 >
-                  <span className="text-3xl">{step.icon}</span>
-                  <div className="absolute -top-3 -right-3 w-7 h-7 flex items-center justify-center font-pixel" style={{ background: "var(--mc-green)", color: "#0a0f0a", fontSize: "8px" }}>
-                    {step.num}
-                  </div>
+                  <div className="text-2xl sm:text-3xl mb-2">{item.icon}</div>
+                  <div className="font-pixel mb-1" style={{ fontSize: "clamp(14px,2vw,20px)", color: "var(--mc-green)" }}>{item.val}</div>
+                  <div className="font-rubik" style={{ fontSize: "clamp(10px,1.2vw,12px)", color: "rgba(200,240,200,0.5)" }}>{item.label}</div>
                 </div>
-                <h3 className="font-pixel text-xs mb-3 text-white">{step.title}</h3>
-                <p className="font-rubik text-sm" style={{ color: "rgba(200, 240, 200, 0.6)", lineHeight: 1.6 }}>{step.desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div
-          className="mt-20 p-10 text-center relative"
-          style={{ background: "linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(77, 255, 219, 0.05) 100%)", border: "2px solid rgba(76, 175, 80, 0.4)" }}
-        >
-          <div className="font-pixel text-xs mb-4" style={{ color: "var(--mc-green)" }}>⚡ ГОТОВ НАЧАТЬ?</div>
-          <h3 className="font-pixel mb-6" style={{ fontSize: "clamp(14px, 2vw, 24px)", color: "#fff" }}>ПОЛУЧИ СКИН ЗА 24 ЧАСА</h3>
-          <button className="mc-button px-12 py-4">🎮 ЗАКАЗАТЬ СЕЙЧАС</button>
         </div>
       </div>
     </section>
   );
 }
 
-function ReviewsSection() {
+type StaffMember = { id: number; username: string; display_name: string; role: string; works_count: number; experience_text: string; avatar_url: string | null; is_active: boolean };
+type Review = { id: number; client_name: string; rating: number; text: string; tg_username: string; is_approved: boolean; created_at: string };
+
+// ======================== TEAM ========================
+function TeamSection() {
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+
+  useEffect(() => {
+    api.getStaff().then((data: unknown) => {
+      if (Array.isArray(data)) setStaff((data as StaffMember[]).filter((s) => s.is_active && s.role !== "owner"));
+    });
+  }, []);
+
+  if (staff.length === 0) return null;
+
   return (
-    <section id="reviews" className="py-24 px-6">
-      <div className="pixel-divider mb-16" />
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <div className="font-pixel text-xs mb-4" style={{ color: "var(--mc-emerald)" }}>⭐ ЧТО ГОВОРЯТ ИГРОКИ</div>
-          <h2 className="font-pixel" style={{ fontSize: "clamp(16px, 3vw, 32px)", color: "#fff" }}>
-            ОТЗЫВЫ <span style={{ color: "var(--mc-green)" }}>КЛИЕНТОВ</span>
+    <section id="team" className="py-16 sm:py-24 px-4 sm:px-6">
+      <div className="pixel-divider mb-10 sm:mb-16" />
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-10 sm:mb-14">
+          <div className="font-pixel text-xs mb-3" style={{ color: "var(--mc-emerald)", fontSize: "9px" }}>👾 НАШИ МАСТЕРА</div>
+          <h2 className="font-pixel" style={{ fontSize: "clamp(16px,3vw,30px)", color: "#fff" }}>
+            КОМАНДА <span style={{ color: "var(--mc-green)" }}>СТУДИИ</span>
           </h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {REVIEWS.map((r, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+          {staff.map((s) => (
             <div
-              key={r.name}
-              className="p-6 transition-all duration-300"
-              style={{ background: "var(--bg-card)", border: "2px solid rgba(76, 175, 80, 0.2)", animation: `slide-up 0.5s ease-out ${i * 0.1}s both` }}
-              onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "rgba(76, 175, 80, 0.6)"; el.style.boxShadow = "0 0 15px rgba(76, 175, 80, 0.1)"; }}
-              onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "rgba(76, 175, 80, 0.2)"; el.style.boxShadow = "none"; }}
+              key={s.id}
+              className="p-5 sm:p-6 text-center transition-all duration-300"
+              style={{ background: "#0d150d", border: "2px solid rgba(76,175,80,0.2)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(76,175,80,0.6)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(76,175,80,0.2)"; }}
             >
-              <div className="flex gap-1 mb-4">
-                {Array(r.stars).fill(null).map((_, si) => (<span key={si} style={{ color: "var(--mc-gold)" }}>★</span>))}
+              <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-3 flex items-center justify-center text-2xl sm:text-3xl" style={{ background: "rgba(76,175,80,0.1)", border: "2px solid rgba(76,175,80,0.3)" }}>
+                {s.avatar_url ? <img src={s.avatar_url} alt={s.display_name} className="w-full h-full object-cover" /> : "🎨"}
               </div>
-              <p className="font-rubik text-base mb-6" style={{ color: "rgba(200, 240, 200, 0.8)", lineHeight: 1.7 }}>"{r.text}"</p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center text-xl" style={{ background: "rgba(76, 175, 80, 0.15)", border: "2px solid rgba(76, 175, 80, 0.3)" }}>
-                  {r.avatar}
-                </div>
-                <div>
-                  <div className="font-pixel text-xs text-white" style={{ fontSize: "9px" }}>{r.name}</div>
-                  <div className="font-rubik text-xs mt-1" style={{ color: "rgba(200, 240, 200, 0.4)" }}>{r.date}</div>
-                </div>
-              </div>
+              <div className="font-pixel text-white mb-1" style={{ fontSize: "clamp(9px,1.5vw,11px)" }}>{s.display_name}</div>
+              <div className="font-pixel mb-2" style={{ fontSize: "8px", color: "var(--mc-green)" }}>СКИНОДЕЛ</div>
+              <div className="font-rubik text-xs mb-1" style={{ color: "rgba(200,240,200,0.5)" }}>{s.experience_text}</div>
+              <div className="font-pixel" style={{ fontSize: "8px", color: "var(--mc-diamond)" }}>Работ: {s.works_count}</div>
             </div>
           ))}
         </div>
@@ -451,50 +298,416 @@ function ReviewsSection() {
   );
 }
 
-function Footer() {
+// ======================== REVIEWS ========================
+function ReviewsSection() {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ client_name: "", rating: 5, text: "", tg_username: "" });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = () => {
+    api.getReviews().then((data: unknown) => { if (Array.isArray(data)) setReviews(data as Review[]); });
+  };
+  useEffect(() => { load(); }, []);
+
+  const submit = async () => {
+    setError("");
+    if (!form.client_name.trim()) { setError("Введи имя"); return; }
+    if (form.text.trim().length < 10) { setError("Отзыв слишком короткий (минимум 10 символов)"); return; }
+    setSending(true);
+    const res = await api.addReview(form);
+    setSending(false);
+    if (res?.error) { setError(res.error); return; }
+    setSent(true);
+    setShowForm(false);
+    setForm({ client_name: "", rating: 5, text: "", tg_username: "" });
+  };
+
   return (
-    <footer className="py-12 px-6" style={{ borderTop: "2px solid rgba(76, 175, 80, 0.2)" }}>
+    <section id="reviews" className="py-16 sm:py-24 px-4 sm:px-6">
+      <div className="pixel-divider mb-10 sm:mb-16" />
       <div className="max-w-6xl mx-auto">
-        <div className="pixel-divider mb-8" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 sm:mb-14 gap-4">
           <div>
-            <div className="font-pixel text-xs mb-4 neon-text">PIXEL<span style={{ color: "var(--mc-diamond)" }}>SKIN</span></div>
-            <p className="font-rubik text-sm" style={{ color: "rgba(200, 240, 200, 0.5)" }}>Студия уникальных Minecraft скинов ручной работы с 2021 года</p>
+            <div className="font-pixel text-xs mb-2" style={{ color: "var(--mc-emerald)", fontSize: "9px" }}>⭐ МНЕНИЯ ИГРОКОВ</div>
+            <h2 className="font-pixel" style={{ fontSize: "clamp(16px,3vw,30px)", color: "#fff" }}>
+              ОТЗЫВЫ <span style={{ color: "var(--mc-green)" }}>КЛИЕНТОВ</span>
+            </h2>
+          </div>
+          <button
+            className="mc-button text-xs self-start sm:self-auto"
+            onClick={() => setShowForm(!showForm)}
+          >
+            + ОСТАВИТЬ ОТЗЫВ
+          </button>
+        </div>
+
+        {/* Form */}
+        {showForm && (
+          <div className="mb-8 p-5 sm:p-6" style={{ background: "#0d150d", border: "2px solid rgba(76,175,80,0.4)" }}>
+            <div className="font-pixel text-xs mb-5 text-white" style={{ fontSize: "10px" }}>НОВЫЙ ОТЗЫВ</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="font-pixel block mb-2" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>ИМЯ / НИК *</label>
+                <input
+                  className="w-full px-3 py-2.5 font-rubik text-sm bg-transparent outline-none"
+                  style={{ border: "2px solid rgba(76,175,80,0.4)", color: "#fff" }}
+                  value={form.client_name}
+                  onChange={(e) => setForm({ ...form, client_name: e.target.value })}
+                  placeholder="Твой ник"
+                />
+              </div>
+              <div>
+                <label className="font-pixel block mb-2" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>TELEGRAM (необязательно)</label>
+                <input
+                  className="w-full px-3 py-2.5 font-rubik text-sm bg-transparent outline-none"
+                  style={{ border: "2px solid rgba(76,175,80,0.4)", color: "#fff" }}
+                  value={form.tg_username}
+                  onChange={(e) => setForm({ ...form, tg_username: e.target.value })}
+                  placeholder="@username"
+                />
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="font-pixel block mb-2" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>ОЦЕНКА</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    className="text-2xl transition-all"
+                    style={{ opacity: n <= form.rating ? 1 : 0.3 }}
+                    onClick={() => setForm({ ...form, rating: n })}
+                  >★</button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="font-pixel block mb-2" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>ОТЗЫВ *</label>
+              <textarea
+                className="w-full px-3 py-2.5 font-rubik text-sm bg-transparent outline-none resize-none"
+                style={{ border: "2px solid rgba(76,175,80,0.4)", color: "#fff", minHeight: 80 }}
+                value={form.text}
+                onChange={(e) => setForm({ ...form, text: e.target.value })}
+                placeholder="Расскажи о своём опыте (минимум 10 символов)"
+              />
+            </div>
+            {error && <div className="font-rubik text-sm mb-4" style={{ color: "#ff5555" }}>{error}</div>}
+            {sent && <div className="font-rubik text-sm mb-4" style={{ color: "var(--mc-green)" }}>✓ Отзыв отправлен на проверку!</div>}
+            <div className="flex gap-3">
+              <button className="mc-button" onClick={submit} disabled={sending}>{sending ? "ОТПРАВКА..." : "ОТПРАВИТЬ"}</button>
+              <button className="font-pixel px-4 py-2.5" style={{ border: "1px solid rgba(76,175,80,0.3)", color: "rgba(200,240,200,0.5)", fontSize: "8px" }} onClick={() => setShowForm(false)}>ОТМЕНА</button>
+            </div>
+          </div>
+        )}
+
+        {sent && !showForm && (
+          <div className="mb-6 p-4 font-rubik text-sm" style={{ background: "rgba(76,175,80,0.1)", border: "1px solid var(--mc-green)", color: "var(--mc-green)" }}>
+            ✓ Твой отзыв отправлен на проверку и появится после одобрения администратором.
+          </div>
+        )}
+
+        {reviews.length === 0 ? (
+          <div className="text-center py-12 font-rubik" style={{ color: "rgba(200,240,200,0.4)" }}>
+            <div className="text-4xl mb-3">💬</div>
+            <div>Пока нет одобренных отзывов. Будь первым!</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {reviews.map((r) => (
+              <div
+                key={r.id}
+                className="p-5 sm:p-6 transition-all duration-300"
+                style={{ background: "#0d150d", border: "2px solid rgba(76,175,80,0.2)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(76,175,80,0.5)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(76,175,80,0.2)"; }}
+              >
+                <div className="flex gap-1 mb-3">
+                  {Array(r.rating).fill(null).map((_, i) => (
+                    <span key={i} style={{ color: "var(--mc-gold)", fontSize: 18 }}>★</span>
+                  ))}
+                  {Array(5 - r.rating).fill(null).map((_, i) => (
+                    <span key={i} style={{ color: "rgba(200,200,200,0.2)", fontSize: 18 }}>★</span>
+                  ))}
+                </div>
+                <p className="font-rubik mb-4" style={{ color: "rgba(200,240,200,0.85)", lineHeight: 1.7, fontSize: "clamp(13px,1.5vw,15px)" }}>
+                  "{r.text}"
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 flex items-center justify-center text-lg" style={{ background: "rgba(76,175,80,0.1)", border: "2px solid rgba(76,175,80,0.3)" }}>
+                    🎮
+                  </div>
+                  <div>
+                    <div className="font-pixel text-white" style={{ fontSize: "9px" }}>{r.client_name}</div>
+                    {r.tg_username && <div className="font-rubik text-xs mt-0.5" style={{ color: "rgba(200,240,200,0.4)" }}>@{r.tg_username.replace("@", "")}</div>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ======================== ORDER MODAL ========================
+function OrderModal({ open, onClose, defaultService }: { open: boolean; onClose: () => void; defaultService?: string }) {
+  const [form, setForm] = useState({
+    client_nick: "",
+    service_type: defaultService || "",
+    description: "",
+    deadline: "",
+    tg_username: "",
+    ds_username: "",
+    vk_username: "",
+  });
+  const [step, setStep] = useState<"form" | "success">("form");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [orderNum, setOrderNum] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setForm((f) => ({ ...f, service_type: defaultService || "" }));
+      setStep("form");
+      setError("");
+    }
+  }, [open, defaultService]);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    setError("");
+    if (!form.client_nick.trim()) { setError("Введи ник/имя"); return; }
+    if (!form.service_type) { setError("Выбери услугу"); return; }
+    if (!form.tg_username && !form.ds_username && !form.vk_username) {
+      setError("Укажи хотя бы один контакт для связи");
+      return;
+    }
+    setLoading(true);
+    const res = await api.createOrder(form);
+    setLoading(false);
+    if (res?.error) { setError(res.error); return; }
+    setOrderNum(res.order_number);
+    setStep("success");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" style={{ background: "rgba(0,0,0,0.85)" }} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className="w-full max-w-lg max-h-screen overflow-y-auto"
+        style={{ background: "#070e07", border: "2px solid rgba(76,175,80,0.5)", boxShadow: "0 0 40px rgba(76,175,80,0.15)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4" style={{ borderBottom: "1px solid rgba(76,175,80,0.2)" }}>
+          <div className="font-pixel text-white" style={{ fontSize: "clamp(9px,1.5vw,11px)" }}>
+            {step === "form" ? "🎨 НОВЫЙ ЗАКАЗ" : "✅ ЗАКАЗ ПРИНЯТ"}
+          </div>
+          <button onClick={onClose} style={{ color: "rgba(200,240,200,0.5)" }}>
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 sm:p-6">
+          {step === "success" ? (
+            <div className="text-center py-4">
+              <div className="text-4xl sm:text-5xl mb-4">🎉</div>
+              <div className="font-pixel text-white mb-3" style={{ fontSize: "clamp(10px,1.5vw,13px)" }}>ЗАКАЗ #{orderNum} ПРИНЯТ!</div>
+              <p className="font-rubik mb-6" style={{ color: "rgba(200,240,200,0.7)", fontSize: "clamp(12px,1.5vw,14px)" }}>
+                Мы свяжемся с тобой через указанный контакт в течение 15 минут!
+              </p>
+              <div className="flex gap-3 justify-center flex-wrap">
+                <a href="https://t.me/Xezze228" target="_blank" rel="noopener noreferrer" className="mc-button text-xs">💬 НАПИСАТЬ В TG</a>
+                <button className="font-pixel px-5 py-2.5" style={{ border: "1px solid rgba(76,175,80,0.3)", color: "rgba(200,240,200,0.6)", fontSize: "8px" }} onClick={onClose}>ЗАКРЫТЬ</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {/* Nick */}
+                <div>
+                  <label className="font-pixel block mb-1.5" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>НИК / ИМЯ *</label>
+                  <input
+                    className="w-full px-3 py-2.5 font-rubik text-sm bg-transparent outline-none"
+                    style={{ border: "2px solid rgba(76,175,80,0.35)", color: "#fff" }}
+                    placeholder="Твой игровой ник"
+                    value={form.client_nick}
+                    onChange={(e) => setForm({ ...form, client_nick: e.target.value })}
+                  />
+                </div>
+
+                {/* Service */}
+                <div>
+                  <label className="font-pixel block mb-1.5" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>ВЫБОР УСЛУГИ *</label>
+                  <select
+                    className="w-full px-3 py-2.5 font-rubik text-sm outline-none cursor-pointer"
+                    style={{ background: "#0d150d", border: "2px solid rgba(76,175,80,0.35)", color: form.service_type ? "#fff" : "rgba(200,240,200,0.4)" }}
+                    value={form.service_type}
+                    onChange={(e) => setForm({ ...form, service_type: e.target.value })}
+                  >
+                    <option value="" disabled>Выбери услугу...</option>
+                    {SERVICES.map((s) => (
+                      <option key={s.id} value={s.id} style={{ background: "#0d150d" }}>{s.label} — {s.price}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="font-pixel block mb-1.5" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>ОПИСАНИЕ СКИНА</label>
+                  <textarea
+                    className="w-full px-3 py-2.5 font-rubik text-sm bg-transparent outline-none resize-none"
+                    style={{ border: "2px solid rgba(76,175,80,0.35)", color: "#fff", minHeight: 72 }}
+                    placeholder="Опиши образ: стиль, цвета, особенности..."
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  />
+                </div>
+
+                {/* Deadline */}
+                <div>
+                  <label className="font-pixel block mb-1.5" style={{ fontSize: "8px", color: "rgba(200,240,200,0.6)" }}>ЖЕЛАЕМЫЕ СРОКИ</label>
+                  <input
+                    className="w-full px-3 py-2.5 font-rubik text-sm bg-transparent outline-none"
+                    style={{ border: "2px solid rgba(76,175,80,0.35)", color: "#fff" }}
+                    placeholder="Например: до 25 апреля"
+                    value={form.deadline}
+                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                  />
+                </div>
+
+                <div className="font-pixel text-xs pt-2" style={{ fontSize: "8px", color: "rgba(200,240,200,0.5)" }}>КОНТАКТ ДЛЯ СВЯЗИ (хотя бы один)</div>
+
+                {/* Contacts */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-pixel block mb-1.5" style={{ fontSize: "7px", color: "rgba(200,240,200,0.5)" }}>TELEGRAM</label>
+                    <input
+                      className="w-full px-2.5 py-2 font-rubik text-sm bg-transparent outline-none"
+                      style={{ border: "2px solid rgba(76,175,80,0.3)", color: "#fff" }}
+                      placeholder="@username"
+                      value={form.tg_username}
+                      onChange={(e) => setForm({ ...form, tg_username: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-pixel block mb-1.5" style={{ fontSize: "7px", color: "rgba(200,240,200,0.5)" }}>DISCORD</label>
+                    <input
+                      className="w-full px-2.5 py-2 font-rubik text-sm bg-transparent outline-none"
+                      style={{ border: "2px solid rgba(76,175,80,0.3)", color: "#fff" }}
+                      placeholder="@username"
+                      value={form.ds_username}
+                      onChange={(e) => setForm({ ...form, ds_username: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-pixel block mb-1.5" style={{ fontSize: "7px", color: "rgba(200,240,200,0.5)" }}>ВКонтакте</label>
+                    <input
+                      className="w-full px-2.5 py-2 font-rubik text-sm bg-transparent outline-none"
+                      style={{ border: "2px solid rgba(76,175,80,0.3)", color: "#fff" }}
+                      placeholder="vk.com/id..."
+                      value={form.vk_username}
+                      onChange={(e) => setForm({ ...form, vk_username: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {error && <div className="mt-4 font-rubik text-sm" style={{ color: "#ff5555" }}>{error}</div>}
+
+              <div className="flex gap-3 mt-6">
+                <button className="mc-button flex-1" onClick={submit} disabled={loading}>
+                  {loading ? "ОТПРАВКА..." : "ЗАКАЗАТЬ →"}
+                </button>
+                <button className="font-pixel px-4 py-2.5" style={{ border: "1px solid rgba(76,175,80,0.25)", color: "rgba(200,240,200,0.5)", fontSize: "8px" }} onClick={onClose}>
+                  ОТМЕНА
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ======================== FOOTER ========================
+function Footer({ onOrderClick }: { onOrderClick: () => void }) {
+  return (
+    <footer className="py-10 sm:py-14 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(76,175,80,0.2)" }}>
+      <div className="pixel-divider mb-8" />
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+          <div>
+            <div className="font-pixel text-xs mb-3 neon-text" style={{ fontSize: "14px" }}>
+              SKIN<span style={{ color: "var(--mc-diamond)" }}>FORGE</span>
+            </div>
+            <p className="font-rubik text-sm" style={{ color: "rgba(200,240,200,0.5)", lineHeight: 1.7 }}>
+              Студия Minecraft скинов ручной работы.<br />Работаем с 2026 года.
+            </p>
           </div>
           <div>
-            <div className="font-pixel text-xs mb-4 text-white" style={{ fontSize: "9px" }}>КОНТАКТЫ</div>
+            <div className="font-pixel mb-3 text-white" style={{ fontSize: "9px" }}>КОНТАКТЫ</div>
             <div className="space-y-2">
-              {["💬 Telegram: @pixelskin", "📧 info@pixelskin.ru", "🎮 Discord: PixelSkin#1234"].map((c) => (
-                <div key={c} className="font-rubik text-sm" style={{ color: "rgba(200, 240, 200, 0.5)" }}>{c}</div>
-              ))}
+              <a href="https://t.me/Xezze228" target="_blank" rel="noopener noreferrer" className="block font-rubik text-sm hover:text-green-300 transition-colors" style={{ color: "rgba(200,240,200,0.55)" }}>
+                💬 Telegram: @Xezze228
+              </a>
+              <a href="https://discord.com/users/xezze228" target="_blank" rel="noopener noreferrer" className="block font-rubik text-sm hover:text-green-300 transition-colors" style={{ color: "rgba(200,240,200,0.55)" }}>
+                🎮 Discord: @xezze228
+              </a>
             </div>
           </div>
           <div>
-            <div className="font-pixel text-xs mb-4 text-white" style={{ fontSize: "9px" }}>РАБОТАЕМ</div>
-            <div className="font-rubik text-sm" style={{ color: "rgba(200, 240, 200, 0.5)" }}>
-              Пн–Вс: 10:00 – 22:00<br />Без выходных<br />Ответ за 15 минут
+            <div className="font-pixel mb-3 text-white" style={{ fontSize: "9px" }}>РЕЖИМ РАБОТЫ</div>
+            <div className="font-rubik text-sm" style={{ color: "rgba(200,240,200,0.55)", lineHeight: 1.8 }}>
+              Пн–Вс: 10:00 – 22:00<br />
+              Ответ за 15 минут<br />
+              Без выходных
             </div>
           </div>
         </div>
-        <div className="pixel-divider mb-6" />
-        <div className="text-center font-pixel" style={{ fontSize: "8px", color: "rgba(200, 240, 200, 0.3)" }}>
-          © 2024 PIXELSKIN STUDIO. ALL RIGHTS RESERVED. MINECRAFT IS NOT AFFILIATED.
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <button className="mc-button self-start" onClick={onOrderClick}>🎨 ЗАКАЗАТЬ СКИН</button>
+          <div className="font-pixel" style={{ fontSize: "7px", color: "rgba(200,240,200,0.25)" }}>
+            © 2026 SKINFORGE STUDIO. MINECRAFT NOT AFFILIATED.
+          </div>
         </div>
       </div>
     </footer>
   );
 }
 
+// ======================== MAIN ========================
 export default function Index() {
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [defaultService, setDefaultService] = useState<string | undefined>();
+  const [clientCount, setClientCount] = useState(100);
+
+  useEffect(() => {
+    api.getCounters().then((data: unknown) => {
+      const d = data as Record<string, number>;
+      if (d?.clients) setClientCount(d.clients);
+    });
+  }, []);
+
+  const openOrder = (service?: string) => {
+    setDefaultService(service);
+    setOrderOpen(true);
+  };
+
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-dark)" }}>
-      <NavBar />
-      <HeroSection />
-      <ServicesSection />
+    <div className="min-h-screen" style={{ background: "#050a05" }}>
+      <NavBar onOrderClick={() => openOrder()} />
+      <HeroSection onOrderClick={() => openOrder()} clientCount={clientCount} />
+      <ServicesSection onOrderClick={openOrder} />
       <AboutSection />
-      <ProcessSection />
+      <TeamSection />
       <ReviewsSection />
-      <Footer />
+      <Footer onOrderClick={() => openOrder()} />
+      <OrderModal open={orderOpen} onClose={() => setOrderOpen(false)} defaultService={defaultService} />
     </div>
   );
 }

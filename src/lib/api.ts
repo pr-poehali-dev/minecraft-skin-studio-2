@@ -36,6 +36,7 @@ export const api = {
   // Gallery
   getGallery: () => req(`${URLS.gallery}/`),
   uploadPhoto: (data: object) => req(`${URLS.gallery}/`, "POST", data),
+  deleteGallery: (id: number) => req(`${URLS.gallery}/`, "DELETE", { id }),
 
   // Chat (order)
   getChat: (orderId: number) => req(`${URLS.api}/chat?order_id=${orderId}`),

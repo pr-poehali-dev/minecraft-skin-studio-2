@@ -90,7 +90,9 @@ def handler(event: dict, context) -> dict:
 
         elif method == "DELETE":
             order_id = body.get("id") or params.get("id")
-            cur.execute(f"UPDATE {SCHEMA}.orders SET status='cancelled' WHERE id=%s", (order_id,))
+            # Удалить сообщения чата и сам заказ
+            cur.execute(f"DELETE FROM {SCHEMA}.order_messages WHERE order_id=%s", (order_id,))
+            cur.execute(f"DELETE FROM {SCHEMA}.orders WHERE id=%s", (order_id,))
             conn.commit()
             return {"statusCode": 200, "headers": headers, "body": json.dumps({"ok": True})}
 
